@@ -1,0 +1,90 @@
+KVOD - 88.1 FM.m3u
+http://66.162.107.142:8000/cpr2_lo
+KCFR - 90.1 FM.m3u
+http://66.162.107.142:8000/cpr1_lo
+KUNC - 91.5 FM.m3u
+http://pubint.ic.llnwd.net/stream/pubint_kunc
+BBC - News: World Service News.m3u
+http://bbcwssc.ic.llnwd.net/stream/bbcwssc_mp1_ws-einws
+BBC - News: World Service.m3u
+http://bbcwssc.ic.llnwd.net/stream/bbcwssc_mp1_ws-eieuk
+BBC - Radio 1.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio1/radio1_bb_live_int_ep1_sl0?BBC-UID=e5b11e7c45d7fce0e7865b1101a268a61ae9a804f09061816272133324a49505&amp;SSO2-UID=
+BBC - Radio 2.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio2/radio2_bb_live_int_ep1_sl0?BBC-UID=e5214e7c154a1e1086ed8ec631d2aee332533dd270302191c2b2b343c4a485d5&amp;SSO2-UID=
+BBC - Radio 3.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio3/radio3_bb_live_int_ep1_sl0?BBC-UID=05115e2c252a6ea4f371c3fd61c7742b6b480d2c5020a10102225373d49405d5&amp;SSO2-UID=
+BBC - Radio 4.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio4/radio4_bb_live_int_ep1_sl1?BBC-UID=25a1ae6c252bf299fd880bd8816386b139c94d2c103051f1d25233734414a5e5&amp;SSO2-UID=
+BBC - Radio 5: Live Sports Extra.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio5/5spxtra_bb_live_int_ep1_sl0?BBC-UID=e5215efc95fb53fb8cfce32f312ee6ad8707c8f100b0817182b26363948455b5&amp;SSO2-UID=
+BBC - Radio 5: Live.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/radio5/radio5_bb_live_int_ep1_sl0?BBC-UID=35711efc856b43f02bde747de141d9c4c32602b9f0c0a1013202631324240575&amp;SSO2-UID=
+BBC - Radio 6: Music.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/6music/6music_bb_live_int_ep1_sl0?BBC-UID=b501ae6c05bbd8ce8cd079f921c79de6f714806cb0b0716152b223a38454c545&amp;SSO2-UID=
+BBC - Radio 7.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/bbc7/bbc7_bb_live_int_ep1_sl0?BBC-UID=55e1ceac857b89225fc3345e91a260b3da3c1008e030718152c2a31374e42555&amp;SSO2-UID=
+BBC - Xtra.m3u
+mms://wmlive-nonacl.bbc.net.uk/wms/bbc_ami/1xtra/1xtra_bb_live_int_ep1_sl0?BBC-UID=85a1febca57a9a8a169c699af1f1d918b149a03bf0e0b1b14222b31314b42595&amp;SSO2-UID=
+Efteling.m3u
+http://82.201.100.10:8000/WEB07_Efteling_mp3
+KBCO - 97.3 FM.m3u
+http://kbco-fm.akacast.akamaistream.net/7/983/19809/v1/auth.akacast.akamaistream.net/kbco-fm
+KBPI - 106.7 FM.m3u
+http://kbpi-fm.akacast.akamaistream.net/7/535/19810/v1/auth.akacast.akamaistream.net/kbpi-fm
+KDHT - 107.1 FM.m3u
+http://out2.cmn.icy.abacast.com:80/kdht-kdhtfmaac-64
+KHOW - 630 AM.m3u
+http://khow-am.akacast.akamaistream.net/7/798/19812/v1/auth.akacast.akamaistream.net/khow-am
+KJHM - 101.5 FM.m3u
+http://out2.cmn.icy.abacast.com:80/kjhm-kjhmfmaac-64
+KKMG - 98.9 FM.m3u
+http://2363.live.streamtheworld.com:80/KKMGFMAAC_SC
+KNUS - 710 AM.m3u
+http://2773.live.streamtheworld.com:80/KNUSAMAAC_SC
+KOA - 850 AM.m3u
+http://koa-am.akacast.akamaistream.net/7/916/19814/v1/auth.akacast.akamaistream.net/koa-am
+KOSI - 101.1 FM.m3u
+http://2563.live.streamtheworld.com:80/KOSIFMAAC_SC
+KPTT - 95.7 FM.m3u
+http://kptt-fm.akacast.akamaistream.net/7/488/19811/v1/auth.akacast.akamaistream.net/kptt-fm
+KQKS - 107.5 FM.m3u
+http://2073.live.streamtheworld.com:80/KQKSFMAAC_SC
+KRFX - 103.5 FM.m3u
+http://krfx-fm.akacast.akamaistream.net/7/521/19815/v1/auth.akacast.akamaistream.net/krfx-fm
+KRWZ - 950 AM.m3u
+http://out1.cmn.icy.abacast.com:80/krwz-krwzam-128
+KTCL - 93.3 FM.m3u
+http://ktcl-fm.akacast.akamaistream.net/7/594/19816/v1/auth.akacast.akamaistream.net/ktcl-fm
+KickRadio.m3u
+http://stream2.kickradio.nl:9000/
+OmroepBrabant.m3u
+http://live.icecast.kpnstreaming.nl/omroepbrabantlive-OmroepBrabantHq
+Radio 1 - Nieuws.m3u
+http://icecast.omroep.nl:80/radio1-bb-mp3
+Radio 1 - Nieuws24.m3u
+http://icecast.omroep.nl:80/nieuws24-bb-mp3
+Radio 4 - Baroque Around The Clock.m3u
+http://icecast.omroep.nl/radio4-baroque-bb-mp3
+Radio 4 - De Klassieken.m3u
+http://icecast.omroep.nl:80/radio4-klassieken-bb-mp3
+Radio 4 - Eigentijds.m3u
+http://icecast.omroep.nl/radio4-eigentijds-mp3
+Radio 4 - Film.m3u
+http://icecast.omroep.nl/radio4-film-bb-mp3
+Radio 4 - Jong Klassiek.m3u
+http://icecast.omroep.nl/radio4-jongklassiek-mp3
+Radio 4 - Musica Religiosa.m3u
+http://icecast.omroep.nl/radio4-musicareligiosa-mp3
+Radio 4 - NPO.m3u
+http://icecast.omroep.nl:80/radio4-bb-mp3
+Radio 4 - Orgelradio.m3u
+http://icecast.omroep.nl/radio4-orgelradio-bb-mp3
+SkyRadio - Love.m3u
+http://8623.live.streamtheworld.com:80/SKYLOVEAAC_SC
+SkyRadio - NL.m3u
+http://8623.live.streamtheworld.com:80/SKYNLAAC_SC
+SkyRadio - Seasonal.m3u
+http://8593.live.streamtheworld.com:80/SEASONALAAC_SC
+SkyRadio.m3u
+http://8623.live.streamtheworld.com:80/SKYRADIOAAC_SC

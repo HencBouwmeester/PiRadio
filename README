@@ -1,0 +1,75 @@
+Install the following:
+
+   i2c-tools
+   mpd
+   libmpd-dev
+   pianobar
+
+
+SCP and untar the following into /home/pi 
+   PiRadio-config.tgz
+   PiRadio.tgz
+
+copy the webradioplaylist.txt file from /home/pi/PiRadio into /home/pi
+
+Change the tls fingerprint in the file if needed
+
+in the /boot/config.txt file, uncomment/add
+   dtparam=spi=on
+   dtparam=audio=on
+   dtparam=i2c_arm=on
+   dtparam=i2c1=on
+
+in the file /etc/modules, add 
+   i2c-dev
+
+Setup to run as service:
+   1. Create file PiRadio.service in /etc/systemd/system containing
+
+      [Unit]
+      Description=PiRadio Interface service
+      After=network.target
+
+      [Install]
+      WantedBy=multi-user.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/PiRadio
+      WorkingDirectory=/home/pi
+      Restart=always
+      RestartSec=5
+      StandardOutput=syslog
+      StandardError=syslog
+      SyslogIdentifier=%n
+
+   2. Reload systemd with this new service unit file:
+      sudo systemctl daemon-reload
+
+   3. Start the script on boot:
+      sudo systemctl enable PiRadio.service
+
+   4. Reboot
+
+
+
+This is a service that is started automatically.  
+1.  The PiRadio.service file needs to be copied into /etc/systemd/system/
+2.  Reload  systemctl using 'sudo systemctl daemon-reload' to make our new file visible
+3.  Enable our service using the command 'sudo systemctl enable PiRadio.service'
+4.  Start the service using 'sudo systemctl start PiRadio.service'
+5.  Check the status of the service using 'sudo systemctl status PiRadio.service'
+6.  To see the logs of the service, 'journalctl -f -u PiRadio.service'
+7.  The service should restart 5 seconds after it stops and should start up automatically upon booting.
+
+
+
+To update webradio stations, input the station and link into the file
+webradioplaylist.txt and then copy it over to the RaspberryPi via
+   scp webradioplaylist.txt pi@172.16.0.110:~/.
+
+
+To rectify the TLS fingerprint mismatch, run the following command and add the output to the config file
+
+openssl s_client -connect tuner.pandora.com:443 < /dev/null 2> /dev/null | openssl x509 -noout -fingerprint | tr -d ':' | cut -d'=' -f2
+
