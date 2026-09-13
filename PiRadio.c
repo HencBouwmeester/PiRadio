@@ -1,6 +1,11 @@
 #include "PiRadio.h"
 
 #define TIME_OUT 5  // One of the system's FSM transitions
+#define KEYSCAN_POLL_DELAY_MS 10
+#define KEYSCAN_DEBOUNCE_DELAY_MS 5
+#define KEYSCAN_STABLE_READS 2
+#define KEYSCAN_REPEAT_INITIAL_DELAY_MS 350
+#define KEYSCAN_REPEAT_PERIOD_MS 120
 
 // keypad values
 #define KEYPAD_NONE 			-1
@@ -156,7 +161,7 @@ int main(){
 			transition(key);
 		}
 		scrollCount++;
-		delay(100);
+		delay(KEYSCAN_POLL_DELAY_MS);
 
 	}
 
@@ -886,7 +891,7 @@ void funcPreset(void)
 			if (entryComplete)
 				break;
 		}
-		delay(75);  // debounce the switch
+		delay(KEYSCAN_DEBOUNCE_DELAY_MS);  // debounce the switch
 		TIMEOUT_STOP;
 	}
 
@@ -1102,36 +1107,98 @@ unsigned char scan_rows(void)
 	return r;
 }
 
+static int keyscan_repeatable(int key)
+{
+	switch (key)
+	{
+		case KEYPAD_TUNE_UP:
+		case KEYPAD_TUNE_DN:
+		case KEYPAD_SEEK_UP:
+		case KEYPAD_SEEK_DN:
+		case KEYPAD_HD_UP:
+		case KEYPAD_HD_DN:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
 int keyscan(void)
 {
+	static int last_key = KEYPAD_NONE;
+	static long last_key_ms = 0;
+	static long last_repeat_ms = 0;
 	int col, row;
 	unsigned char c, r;
+	int stable_reads = 0;
+	int pressed_key;
+	struct timeval now;
+	long now_ms;
+
 	c = scan_cols();
-	if (c != 0x3F) {
-		r = scan_rows();
-		while (scan_cols() == c) ;
-
-		col = 0; row = 0;
-		c += 0b11000000; c = ~c;
-		if(c != 0) { 
-			while (c != 1){ 
-				c = c >> 1; 
-				col++; 
-			} 
-		}
-		if(r != 0) {
-			while (r != 1){ 
-				r = r >> 1; 
-				row++; 
-			}
-		}
-
+	if (c == 0x3F) {
 		keyscan_colsetup();
-		return keys[row][col];
+		last_key = KEYPAD_NONE;
+		last_key_ms = 0;
+		last_repeat_ms = 0;
+		return KEYPAD_NONE;
 	}
 
+	while (stable_reads < KEYSCAN_STABLE_READS) {
+		if (scan_cols() != c) {
+			keyscan_colsetup();
+			last_key = KEYPAD_NONE;
+			last_key_ms = 0;
+			last_repeat_ms = 0;
+			return KEYPAD_NONE;
+		}
+		stable_reads++;
+		delay(KEYSCAN_DEBOUNCE_DELAY_MS);
+	}
+
+	r = scan_rows();
+	col = 0; row = 0;
+	c += 0b11000000; c = ~c;
+	if(c != 0) {
+		while (c != 1){
+			c = c >> 1;
+			col++;
+		}
+	}
+	if(r != 0) {
+		while (r != 1){
+			r = r >> 1;
+			row++;
+		}
+	}
+
+	pressed_key = keys[row][col];
 	keyscan_colsetup();
-	return KEYPAD_NONE;
+
+	if (pressed_key == KEYPAD_NONE)
+		return KEYPAD_NONE;
+
+	gettimeofday(&now, NULL);
+	now_ms = (now.tv_sec * 1000L) + (now.tv_usec / 1000L);
+
+	if (pressed_key == last_key) {
+		if (!keyscan_repeatable(last_key))
+			return KEYPAD_NONE;
+		if (last_key_ms == 0)
+			last_key_ms = now_ms;
+		if (now_ms - last_key_ms < KEYSCAN_REPEAT_INITIAL_DELAY_MS)
+			return KEYPAD_NONE;
+		if (last_repeat_ms == 0 || (now_ms - last_repeat_ms) >= KEYSCAN_REPEAT_PERIOD_MS) {
+			last_repeat_ms = now_ms;
+			return last_key;
+		}
+		return KEYPAD_NONE;
+	}
+
+	last_key = pressed_key;
+	last_key_ms = now_ms;
+	last_repeat_ms = 0;
+	return pressed_key;
 }
 
 int drawclock( int oldMinutes ) {
