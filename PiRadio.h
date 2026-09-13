@@ -59,6 +59,7 @@ typedef struct
         Station_strlen;
 } Song;
 void retr_msg(void);
+void retr_station_msg(void);
 
 typedef enum 
 {

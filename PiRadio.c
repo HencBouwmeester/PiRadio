@@ -1,11 +1,9 @@
 #include "PiRadio.h"
 
 #define TIME_OUT 5  // One of the system's FSM transitions
-#define KEYSCAN_POLL_DELAY_MS 10
-#define KEYSCAN_DEBOUNCE_DELAY_MS 5
+#define KEYSCAN_POLL_DELAY_MS 100
+#define KEYSCAN_DEBOUNCE_DELAY_MS 10
 #define KEYSCAN_STABLE_READS 2
-#define KEYSCAN_REPEAT_INITIAL_DELAY_MS 350
-#define KEYSCAN_REPEAT_PERIOD_MS 120
 
 // keypad values
 #define KEYPAD_NONE 			-1
@@ -349,22 +347,26 @@ void transition( int trigger)
 					transition(KEYPAD_TUNE_DN); // station is returned one too high on purpose, so this allows us to use TUNE_DN
 				else if (state == PANDORA)
 				{
-					station--;
-					station = station >= (num_stations-1) ? 0 : station;
-					sprintf( system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
+					if (station > 0)
+						station--;
+					if (station < 0)
+						station = 0;
+					if (station >= num_stations)
+						station = num_stations - 1;
+					retr_station_msg();
+					sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
 					system(system_msg);
-					// wait for the next refresh so display a message that we understood the input
-					retr_msg();
 					updated_song = 0;
 				}
-
 			}
 #ifdef DEBUG
 			printf("State: PRESET_SELECT\n");
 #endif
 			break;
+		default:
+				break;
+		}
 	}
-}
 
 void idle()
 {
@@ -1107,49 +1109,33 @@ unsigned char scan_rows(void)
 	return r;
 }
 
-static int keyscan_repeatable(int key)
-{
-	switch (key)
-	{
-		case KEYPAD_TUNE_UP:
-		case KEYPAD_TUNE_DN:
-		case KEYPAD_SEEK_UP:
-		case KEYPAD_SEEK_DN:
-		case KEYPAD_HD_UP:
-		case KEYPAD_HD_DN:
-			return 1;
-		default:
-			return 0;
-	}
-}
-
 int keyscan(void)
 {
 	static int last_key = KEYPAD_NONE;
-	static long last_key_ms = 0;
-	static long last_repeat_ms = 0;
+	static int key_held = 0;
 	int col, row;
 	unsigned char c, r;
 	int stable_reads = 0;
 	int pressed_key;
-	struct timeval now;
-	long now_ms;
 
 	c = scan_cols();
 	if (c == 0x3F) {
 		keyscan_colsetup();
+		key_held = 0;
 		last_key = KEYPAD_NONE;
-		last_key_ms = 0;
-		last_repeat_ms = 0;
+		return KEYPAD_NONE;
+	}
+
+	if (key_held) {
+		keyscan_colsetup();
 		return KEYPAD_NONE;
 	}
 
 	while (stable_reads < KEYSCAN_STABLE_READS) {
 		if (scan_cols() != c) {
 			keyscan_colsetup();
+			key_held = 0;
 			last_key = KEYPAD_NONE;
-			last_key_ms = 0;
-			last_repeat_ms = 0;
 			return KEYPAD_NONE;
 		}
 		stable_reads++;
@@ -1177,27 +1163,11 @@ int keyscan(void)
 
 	if (pressed_key == KEYPAD_NONE)
 		return KEYPAD_NONE;
-
-	gettimeofday(&now, NULL);
-	now_ms = (now.tv_sec * 1000L) + (now.tv_usec / 1000L);
-
-	if (pressed_key == last_key) {
-		if (!keyscan_repeatable(last_key))
-			return KEYPAD_NONE;
-		if (last_key_ms == 0)
-			last_key_ms = now_ms;
-		if (now_ms - last_key_ms < KEYSCAN_REPEAT_INITIAL_DELAY_MS)
-			return KEYPAD_NONE;
-		if (last_repeat_ms == 0 || (now_ms - last_repeat_ms) >= KEYSCAN_REPEAT_PERIOD_MS) {
-			last_repeat_ms = now_ms;
-			return last_key;
-		}
+	if (pressed_key == last_key)
 		return KEYPAD_NONE;
-	}
 
+	key_held = 1;
 	last_key = pressed_key;
-	last_key_ms = now_ms;
-	last_repeat_ms = 0;
 	return pressed_key;
 }
 
@@ -1366,6 +1336,17 @@ void retr_msg(void)
 	nju6676FillRect(0,0,128,53,BLUE);
 	nju6676FillRect(120,56,8,8,BLUE);
 	msg = "Retrieving info...\n";
+	nju6676GotoXY((SCREEN_WIDTH-(strlen(msg)-1)*5-strlen(msg)-2)/2,8);
+	nju6676Puts(msg);
+	nju6676Display();
+}
+
+void retr_station_msg(void)
+{
+	char *msg;
+	nju6676FillRect(0,0,128,53,BLUE);
+	nju6676FillRect(120,56,8,8,BLUE);
+	msg = "Retrieving station...\n";
 	nju6676GotoXY((SCREEN_WIDTH-(strlen(msg)-1)*5-strlen(msg)-2)/2,8);
 	nju6676Puts(msg);
 	nju6676Display();
