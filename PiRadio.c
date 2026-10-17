@@ -113,12 +113,34 @@ static void run_command(const char *command)
 	}
 }
 
+static void stop_mpd_playback_on_startup(void)
+{
+	MpdObj *startup_mpd;
+
+	if (!hostname)
+		hostname = "localhost";
+
+	startup_mpd = mpd_new(hostname, iport, password);
+	if (!startup_mpd) {
+		fprintf(stderr, "Unable to create MPD client during startup.\n");
+		return;
+	}
+
+	if (mpd_connect(startup_mpd) == 0) {
+		mpd_player_stop(startup_mpd);
+	} else {
+		fprintf(stderr, "Unable to connect to MPD to stop startup playback.\n");
+	}
+	mpd_free(startup_mpd);
+}
+
 int main(){
 
 	int key;
 
 	hostname = getenv("MPD_HOST");
 	password = getenv("MPD_PASSWORD");
+	stop_mpd_playback_on_startup();
 	TIMER_CLEAR;
 	SHOWTIME_CLEAR;
 	SHOWTIME_START;
