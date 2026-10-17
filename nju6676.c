@@ -190,7 +190,7 @@ void nju6676ClearScreen( uint8_t color )
 	memset(DDRAM, color, 1024);
 }
 
-inline uint8_t nju6676ReadData(void)
+uint8_t nju6676ReadData(void)
 {
 	nju6676GotoXY(nju6676Coord.x, nju6676Coord.y);
 // 	printf("%d %d %d, ",nju6676Coord.page, nju6676Coord.x, nju6676Coord.y);

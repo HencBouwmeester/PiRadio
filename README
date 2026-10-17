@@ -6,70 +6,63 @@ Install the following:
    pianobar
 
 
-SCP and untar the following into /home/pi 
-   PiRadio-config.tgz
-   PiRadio.tgz
+PiRadio is a Raspberry Pi radio interface using SPI/I2C hardware, MPD, and Pianobar.
 
-copy the webradioplaylist.txt file from /home/pi/PiRadio into /home/pi
+## Dependencies
 
-Change the tls fingerprint in the file if needed
+Install the build and runtime dependencies:
 
-in the /boot/config.txt file, uncomment/add
-   dtparam=spi=on
-   dtparam=audio=on
-   dtparam=i2c_arm=on
-   dtparam=i2c1=on
+    sudo apt install build-essential i2c-tools mpd libmpd-dev pianobar
 
-in the file /etc/modules, add 
-   i2c-dev
+## Build and install
 
-Setup to run as service:
-   1. Create file PiRadio.service in /etc/systemd/system containing
+Build and run the tests:
 
-      [Unit]
-      Description=PiRadio Interface service
-      After=network.target
+    make
+    make test
 
-      [Install]
-      WantedBy=multi-user.target
+Install the executable:
 
-      [Service]
-      Type=simple
-      ExecStart=/usr/local/bin/PiRadio
-      WorkingDirectory=/home/pi
-      Restart=always
-      RestartSec=5
-      StandardOutput=syslog
-      StandardError=syslog
-      SyslogIdentifier=%n
+    sudo make install
 
-   2. Reload systemd with this new service unit file:
-      sudo systemctl daemon-reload
+Copy the station list to the path used by the service:
 
-   3. Start the script on boot:
-      sudo systemctl enable PiRadio.service
+    cp webradioplaylist.txt /home/pi/
 
-   4. Reboot
+Configure Pianobar under `/home/pi/.config/pianobar/` before using Pandora.
 
+## Raspberry Pi hardware
 
+Enable the required interfaces in the boot configuration:
 
-This is a service that is started automatically.  
-1.  The PiRadio.service file needs to be copied into /etc/systemd/system/
-2.  Reload  systemctl using 'sudo systemctl daemon-reload' to make our new file visible
-3.  Enable our service using the command 'sudo systemctl enable PiRadio.service'
-4.  Start the service using 'sudo systemctl start PiRadio.service'
-5.  Check the status of the service using 'sudo systemctl status PiRadio.service'
-6.  To see the logs of the service, 'journalctl -f -u PiRadio.service'
-7.  The service should restart 5 seconds after it stops and should start up automatically upon booting.
+    dtparam=spi=on
+    dtparam=audio=on
+    dtparam=i2c_arm=on
+    dtparam=i2c1=on
 
+Ensure the `i2c-dev` kernel module is loaded at boot.
 
+## Run as a systemd service
 
-To update webradio stations, input the station and link into the file
-webradioplaylist.txt and then copy it over to the RaspberryPi via
-   scp webradioplaylist.txt pi@172.16.0.110:~/.
+Install and start the included unit:
 
+    sudo cp PiRadio.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now PiRadio.service
 
-To rectify the TLS fingerprint mismatch, run the following command and add the output to the config file
+Check status and logs with:
 
-openssl s_client -connect tuner.pandora.com:443 < /dev/null 2> /dev/null | openssl x509 -noout -fingerprint | tr -d ':' | cut -d'=' -f2
+    sudo systemctl status PiRadio.service
+    journalctl -f -u PiRadio.service
 
+## Update web radio stations
+
+Add each station to `webradioplaylist.txt` as alternating lines: an `.m3u` filename followed by its stream URL. Copy the file to `/home/pi/` after editing.
+
+## Pianobar TLS fingerprint
+
+If Pianobar reports a TLS fingerprint mismatch, get the current certificate fingerprint with:
+
+    openssl s_client -connect tuner.pandora.com:443 < /dev/null 2> /dev/null | openssl x509 -noout -fingerprint | tr -d ':' | cut -d'=' -f2
+
+Set Pianobar's `tls_fingerprint` option to the output above.

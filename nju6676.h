@@ -65,7 +65,7 @@ void nju6676PrintNumber(long n);
 
 // Control functions
 void nju6676GotoXY(uint8_t x, uint8_t y);
-inline uint8_t nju6676ReadData(void);
+uint8_t nju6676ReadData(void);
 void nju6676WriteCommand( uint8_t data);
 void nju6676WriteData( uint8_t data);
 void nju6676DoWriteData( uint8_t data);

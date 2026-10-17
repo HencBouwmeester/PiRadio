@@ -62,7 +62,7 @@ uint32_t bcm2835_peri_read(volatile uint32_t* paddr)
 {
     if (debug)
     {
-        printf("bcm2835_peri_read  paddr %08X\n", (unsigned) paddr);
+        printf("bcm2835_peri_read  paddr %p\n", (void *) paddr);
 	return 0;
     }
     else
@@ -80,7 +80,7 @@ uint32_t bcm2835_peri_read_nb(volatile uint32_t* paddr)
 {
     if (debug)
     {
-	printf("bcm2835_peri_read_nb  paddr %08X\n", (unsigned) paddr);
+    printf("bcm2835_peri_read_nb  paddr %p\n", (void *) paddr);
 	return 0;
     }
     else
@@ -94,7 +94,7 @@ void bcm2835_peri_write(volatile uint32_t* paddr, uint32_t value)
 {
   if (debug)
     {
-	printf("bcm2835_peri_write paddr %08X, value %08X\n", (unsigned) paddr, value);
+    printf("bcm2835_peri_write paddr %p, value %08X\n", (void *) paddr, value);
     }
   else
     {
@@ -110,8 +110,8 @@ void bcm2835_peri_write_nb(volatile uint32_t* paddr, uint32_t value)
 {
     if (debug)
     {
-	printf("bcm2835_peri_write_nb paddr %08X, value %08X\n",
-               (unsigned) paddr, value);
+    printf("bcm2835_peri_write_nb paddr %p, value %08X\n",
+           (void *) paddr, value);
     }
     else
     {

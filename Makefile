@@ -22,7 +22,7 @@ PiRadio: $(OBJ)
 .PHONY: clean
 
 clean:
-		rm -f $(ODIR)/*.o test_station_index test_radio_playlist *~ core $(IDIR)/*~
+		rm -f PiRadio $(ODIR)/*.o test_station_index test_radio_playlist *~ core $(IDIR)/*~
 
 install: 
 	install -m 0755 PiRadio $(prefix)/bin

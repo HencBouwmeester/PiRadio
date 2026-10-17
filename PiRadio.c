@@ -1,6 +1,7 @@
 #include "PiRadio.h"
 #include "station_index.h"
 #include "radio_playlist.h"
+#include <sys/wait.h>
 
 #define TIME_OUT 5  // One of the system's FSM transitions
 #define KEYSCAN_POLL_DELAY_MS 100
@@ -94,6 +95,23 @@ char MPDplaylist[RADIO_PLAYLIST_LIMIT][RADIO_PLAYLIST_FILENAME_CAPACITY];
 
 int paused = 0;
 int show_pause = 0;
+
+static void run_command(const char *command)
+{
+	int status = system(command);
+
+	if (status == -1) {
+		perror("Unable to start command");
+	} else if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		fprintf(stderr, "Command exited with status %d: %s\n",
+			WEXITSTATUS(status), command);
+	} else if (WIFSIGNALED(status)) {
+		fprintf(stderr, "Command terminated by signal %d: %s\n",
+			WTERMSIG(status), command);
+	} else if (!WIFEXITED(status)) {
+		fprintf(stderr, "Command did not exit normally: %s\n", command);
+	}
+}
 
 int main(){
 
@@ -234,7 +252,7 @@ void transition( int trigger)
 					// next station
 					station = station >= (num_stations-1) ? 0 : station + 1;
 					sprintf( system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					system(system_msg);
+					run_command(system_msg);
 					// wait for the next refresh
 					retr_msg();
 					updated_song = 0;
@@ -243,14 +261,14 @@ void transition( int trigger)
 					// previous station
 					station = station < 1 ? num_stations-1 : station - 1;
 					sprintf( system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					system(system_msg);
+					run_command(system_msg);
 					// wait for the next refresh
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_SEEK_UP:
 					// love song
-					system("echo '+' > /home/pi/.config/pianobar/ctl");
+					run_command("echo '+' > /home/pi/.config/pianobar/ctl");
 
 					// we are going to blink the heart so that it is obvious that it has been done
 					w = pandora_heart[0]; h = pandora_heart[1];
@@ -266,28 +284,28 @@ void transition( int trigger)
 					break;
 				case KEYPAD_SEEK_DN:
 					// ban song
-					system("echo '-' > /home/pi/.config/pianobar/ctl");
+					run_command("echo '-' > /home/pi/.config/pianobar/ctl");
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_HD_UP:
 					// next song
-					system("echo 'n' > /home/pi/.config/pianobar/ctl");
+					run_command("echo 'n' > /home/pi/.config/pianobar/ctl");
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_HD_DN:
 					// tired song
-					system("echo 't' > /home/pi/.config/pianobar/ctl");
+					run_command("echo 't' > /home/pi/.config/pianobar/ctl");
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_FREQUENCY:
 					// pause/un-pause the currently playing song
-					system("echo 'p' > /home/pi/.config/pianobar/ctl");
+					run_command("echo 'p' > /home/pi/.config/pianobar/ctl");
 					paused = !paused;
 					if (!paused)
 					{
@@ -361,7 +379,7 @@ void transition( int trigger)
 						station = num_stations - 1;
 					retr_station_msg();
 					sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					system(system_msg);
+					run_command(system_msg);
 					updated_song = 0;
 				}
 			}
@@ -405,10 +423,10 @@ void stopServices( Services_t currentService )
 		switch (currentService)
 		{
 			case airPlayService:
-				system("sudo service shairport stop >/dev/null 2>&1");
+				run_command("sudo service shairport stop >/dev/null 2>&1");
 				break;
 			case pandoraService:
-				system("echo 'q' > /home/pi/.config/pianobar/ctl");
+				run_command("echo 'q' > /home/pi/.config/pianobar/ctl");
 				paused = 0;
 				break;
 			case webRadioService:
@@ -525,7 +543,7 @@ void funcAirplay()
 		w = airplay[0]; h = airplay[1];
 		nju6676DrawBitmap((SCREEN_WIDTH-w)/2,(SCREEN_HEIGHT-h)/2,&airplay[2],w,h,WHITE);
 		nju6676Display();
-		system("sudo service shairport restart >/dev/null 2>&1");
+		run_command("sudo service shairport restart >/dev/null 2>&1");
 		runningService = airPlayService;
 	}
 }
@@ -605,9 +623,9 @@ void funcWebRadio()
 
 		// if the service has stopped or there is an error, restart it
 		if(mpd_connect(obj)) {
-			system("mkdir /var/log/mpd");
-			system("touch /var/log/mpd/mpd.log");
-			system("sudo service mpd restart >/dev/null 2>&1");
+			run_command("mkdir /var/log/mpd");
+			run_command("touch /var/log/mpd/mpd.log");
+			run_command("sudo service mpd restart >/dev/null 2>&1");
 		}
 
 		// draw the splash screen
@@ -732,15 +750,15 @@ int funcPandora(void)
 		// check to see if pianobar is already running
 		pid_t pid = proc_find("pianobar");
 		// it is running, so quit it
-		if (pid != -1) system("echo 'q' > /home/pi/.config/pianobar/ctl");
+		if (pid != -1) run_command("echo 'q' > /home/pi/.config/pianobar/ctl");
 
 		// now it is not running, so clear out the current song info
-		system("echo '' > /home/pi/.config/pianobar/nowplaying");
+		run_command("echo '' > /home/pi/.config/pianobar/nowplaying");
 		if (stat("/home/pi/.config/pianobar/nowplaying", &nowplayingStat) < 0)
 			return 1;
 		oldTime = nowplayingStat.st_mtime;
 		// start pianobar
-		system("su - pi -c \"nohup pianobar >/dev/null 2>&1&\"");
+		run_command("su - pi -c \"nohup pianobar >/dev/null 2>&1&\"");
 		bcm2835_delay(5000);
 		// wait for the next refresh
 		retr_msg();
