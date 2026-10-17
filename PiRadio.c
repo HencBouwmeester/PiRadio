@@ -272,8 +272,8 @@ void transition( int trigger)
 					break;
 				case KEYPAD_TUNE_UP:
 					// next station
-					if (num_stations > 0) {
-						station = station >= (num_stations-1) ? 0 : station + 1;
+					station = station_index_step(station, 1, num_stations);
+					if (station >= 0) {
 						current.StationNum = station;
 						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
 						run_command(system_msg);
@@ -284,8 +284,8 @@ void transition( int trigger)
 					break;
 				case KEYPAD_TUNE_DN:
 					// previous station
-					if (num_stations > 0) {
-						station = station < 1 ? num_stations-1 : station - 1;
+					station = station_index_step(station, -1, num_stations);
+					if (station >= 0) {
 						current.StationNum = station;
 						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
 						run_command(system_msg);
@@ -764,6 +764,7 @@ void funcWebRadio()
 int funcPandora(void)
 {
 	int w, h;
+	char station_line[512];
 
 	if ( runningService != pandoraService )
 	{
@@ -797,13 +798,12 @@ int funcPandora(void)
 
 		ch = 0; station = 0; num_stations = 0;
 		fp = fopen("/home/pi/.config/pianobar/stationlist","r");
-		while(!feof(fp))
-		{
-			ch = fgetc(fp);
-			if(ch == '\n')
-			{
+		if (!fp) {
+			perror("Unable to open Pianobar station list");
+		} else {
+			while (fgets(station_line, sizeof(station_line), fp) != NULL)
 				num_stations++;
-			}
+			fclose(fp);
 		}
 
 		nju6676Display();
@@ -869,7 +869,6 @@ int funcPandora(void)
 			}
 
 			// display station number in lower left corner
-			station = current.StationNum;
 			nju6676FillRect(0,56,14,8,BLUE);
 			nju6676GotoXY(1,56);
 			nju6676PrintNumber((char)((station+1) / 10));

@@ -9,6 +9,9 @@ int main(void)
 	assert(station_index_step(0, -1, 3) == 2);
 	assert(station_index_step(0, -1, 1) == 0);
 	assert(station_index_step(-1, 1, 3) == 0);
+	assert(station_index_step(14, 1, 16) == 15);
+	assert(station_index_step(15, 1, 16) == 0);
+	assert(station_index_step(0, -1, 16) == 15);
 	assert(station_index_step(0, -1, 0) == -1);
 	return 0;
 }
