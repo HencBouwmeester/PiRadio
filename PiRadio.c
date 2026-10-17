@@ -272,21 +272,27 @@ void transition( int trigger)
 					break;
 				case KEYPAD_TUNE_UP:
 					// next station
-					station = station >= (num_stations-1) ? 0 : station + 1;
-					sprintf( system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					run_command(system_msg);
-					// wait for the next refresh
-					retr_msg();
-					updated_song = 0;
+					if (num_stations > 0) {
+						station = station >= (num_stations-1) ? 0 : station + 1;
+						current.StationNum = station;
+						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
+						run_command(system_msg);
+						// wait for the next refresh
+						retr_msg();
+						updated_song = 0;
+					}
 					break;
 				case KEYPAD_TUNE_DN:
 					// previous station
-					station = station < 1 ? num_stations-1 : station - 1;
-					sprintf( system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					run_command(system_msg);
-					// wait for the next refresh
-					retr_msg();
-					updated_song = 0;
+					if (num_stations > 0) {
+						station = station < 1 ? num_stations-1 : station - 1;
+						current.StationNum = station;
+						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
+						run_command(system_msg);
+						// wait for the next refresh
+						retr_msg();
+						updated_song = 0;
+					}
 					break;
 				case KEYPAD_SEEK_UP:
 					// love song
@@ -393,16 +399,19 @@ void transition( int trigger)
 					transition(KEYPAD_TUNE_DN); // station is returned one too high on purpose, so this allows us to use TUNE_DN
 				else if (state == PANDORA)
 				{
-					if (station > 0)
-						station--;
-					if (station < 0)
-						station = 0;
-					if (station >= num_stations)
-						station = num_stations - 1;
-					retr_station_msg();
-					sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-					run_command(system_msg);
-					updated_song = 0;
+					if (num_stations > 0) {
+						if (station > 0)
+							station--;
+						if (station < 0)
+							station = 0;
+						if (station >= num_stations)
+							station = num_stations - 1;
+						current.StationNum = station;
+						retr_station_msg();
+						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
+						run_command(system_msg);
+						updated_song = 0;
+					}
 				}
 			}
 #ifdef DEBUG
