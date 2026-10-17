@@ -1,6 +1,7 @@
 #include "PiRadio.h"
 #include "station_index.h"
 #include "radio_playlist.h"
+#include "radio_services.h"
 #include <sys/wait.h>
 
 #define TIME_OUT 5  // One of the system's FSM transitions
@@ -83,7 +84,6 @@ const unsigned int keys[4][6] = {
 int oldMinutes;
 int scrollCount = 0;
 
-char system_msg[200];
 time_t oldTime;
 int ch;
 struct stat nowplayingStat;
@@ -132,6 +132,22 @@ static void stop_mpd_playback_on_startup(void)
 		fprintf(stderr, "Unable to connect to MPD to stop startup playback.\n");
 	}
 	mpd_free(startup_mpd);
+}
+
+static void send_pandora_action(RadioPandoraAction action)
+{
+	if (radio_pandora_send_action("/home/pi/.config/pianobar/ctl", action) != 0)
+		perror("Unable to write Pianobar control command");
+}
+
+static int select_pandora_station(int index)
+{
+	if (radio_pandora_select_station("/home/pi/.config/pianobar/ctl",
+					 index, num_stations) != 0) {
+		perror("Unable to select Pianobar station");
+		return -1;
+	}
+	return 0;
 }
 
 int main(){
@@ -272,31 +288,27 @@ void transition( int trigger)
 					break;
 				case KEYPAD_TUNE_UP:
 					// next station
-					station = station_index_step(station, 1, num_stations);
-					if (station >= 0) {
+					w = station_index_step(station, 1, num_stations);
+					if (w >= 0 && select_pandora_station(w) == 0) {
+						station = w;
 						current.StationNum = station;
-						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-						run_command(system_msg);
-						// wait for the next refresh
 						retr_msg();
 						updated_song = 0;
 					}
 					break;
 				case KEYPAD_TUNE_DN:
 					// previous station
-					station = station_index_step(station, -1, num_stations);
-					if (station >= 0) {
+					w = station_index_step(station, -1, num_stations);
+					if (w >= 0 && select_pandora_station(w) == 0) {
+						station = w;
 						current.StationNum = station;
-						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-						run_command(system_msg);
-						// wait for the next refresh
 						retr_msg();
 						updated_song = 0;
 					}
 					break;
 				case KEYPAD_SEEK_UP:
 					// love song
-					run_command("echo '+' > /home/pi/.config/pianobar/ctl");
+					send_pandora_action(RADIO_PANDORA_LOVE);
 
 					// we are going to blink the heart so that it is obvious that it has been done
 					w = pandora_heart[0]; h = pandora_heart[1];
@@ -312,29 +324,32 @@ void transition( int trigger)
 					break;
 				case KEYPAD_SEEK_DN:
 					// ban song
-					run_command("echo '-' > /home/pi/.config/pianobar/ctl");
+					send_pandora_action(RADIO_PANDORA_BAN);
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_HD_UP:
 					// next song
-					run_command("echo 'n' > /home/pi/.config/pianobar/ctl");
+					send_pandora_action(RADIO_PANDORA_NEXT);
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_HD_DN:
 					// tired song
-					run_command("echo 't' > /home/pi/.config/pianobar/ctl");
+					send_pandora_action(RADIO_PANDORA_TIRED);
 					// wait for the next refresh so display a message that we understood the input
 					retr_msg();
 					updated_song = 0;
 					break;
 				case KEYPAD_FREQUENCY:
 					// pause/un-pause the currently playing song
-					run_command("echo 'p' > /home/pi/.config/pianobar/ctl");
-					paused = !paused;
+					if (radio_pandora_send_action("/home/pi/.config/pianobar/ctl",
+								      RADIO_PANDORA_PAUSE) == 0)
+						paused = !paused;
+					else
+						perror("Unable to pause Pianobar");
 					if (!paused)
 					{
 						nju6676FillRect(110,56,7,8,BLUE);
@@ -400,17 +415,15 @@ void transition( int trigger)
 				else if (state == PANDORA)
 				{
 					if (num_stations > 0) {
-						if (station > 0)
-							station--;
-						if (station < 0)
-							station = 0;
-						if (station >= num_stations)
-							station = num_stations - 1;
-						current.StationNum = station;
-						retr_station_msg();
-						sprintf(system_msg, "echo 's%d' > /home/pi/.config/pianobar/ctl", station);
-						run_command(system_msg);
-						updated_song = 0;
+						w = station > 0 ? station - 1 : 0;
+						if (w >= num_stations)
+							w = num_stations - 1;
+						if (select_pandora_station(w) == 0) {
+							station = w;
+							current.StationNum = station;
+							retr_station_msg();
+							updated_song = 0;
+						}
 					}
 				}
 			}
@@ -457,7 +470,7 @@ void stopServices( Services_t currentService )
 				run_command("sudo service shairport stop >/dev/null 2>&1");
 				break;
 			case pandoraService:
-				run_command("echo 'q' > /home/pi/.config/pianobar/ctl");
+				send_pandora_action(RADIO_PANDORA_QUIT);
 				paused = 0;
 				break;
 			case webRadioService:
@@ -782,10 +795,13 @@ int funcPandora(void)
 		// check to see if pianobar is already running
 		pid_t pid = proc_find("pianobar");
 		// it is running, so quit it
-		if (pid != -1) run_command("echo 'q' > /home/pi/.config/pianobar/ctl");
+		if (pid != -1) send_pandora_action(RADIO_PANDORA_QUIT);
 
 		// now it is not running, so clear out the current song info
-		run_command("echo '' > /home/pi/.config/pianobar/nowplaying");
+		if (radio_pandora_clear_nowplaying("/home/pi/.config/pianobar/nowplaying") != 0) {
+			perror("Unable to clear Pianobar now-playing file");
+			return 1;
+		}
 		if (stat("/home/pi/.config/pianobar/nowplaying", &nowplayingStat) < 0)
 			return 1;
 		oldTime = nowplayingStat.st_mtime;
