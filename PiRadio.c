@@ -1280,68 +1280,14 @@ int change_station( MpdObj *obj, const char *station)
 
 void update_current_song( char *station, char *name, char *artist, char *title)
 {
-	int k;
 	nju6676FillRect(0,0,128,53,BLUE);
 
-	current.Artist[0] = 0;
-	current.Title[0] = 0;
-	current.Album[0] = 0;
-	current.Station[0] = 0;
-	current.Artist_strlen = 0;
-	current.Title_strlen = 0;
-	current.Album_strlen = 0;
-	current.Station_strlen = 0;
-
-	if(artist)
-	{
-		for (k = 0; k<strlen(artist); k++)
-			current.Artist[k] = artist[k];
-		current.Artist[strlen(artist)] = 0;
-	}
-	if(title)
-	{
-		for (k = 0; k<strlen(title); k++)
-			current.Title[k] = title[k];
-		current.Title[strlen(title)] = 0;
-	}
-	if(station)
-	{
-		for (k = 0; k<strlen(station); k++)
-			current.Station[k] = station[k];
-		current.Station[strlen(station)] = 0;
-	}
-	if(name)
-	{
-		for (k = 0; k<strlen(name); k++)
-			current.Album[k] = name[k];
-		current.Album[strlen(name)] = 0;
-	}
-
-	current.Artist_strlen = strlen(current.Artist);
-	current.Title_strlen = strlen(current.Title);
-	current.Album_strlen = strlen(current.Album);
-	current.Station_strlen = strlen(current.Station);
-
-	if (current.Artist_strlen > 21)
-	{
-		strcat(current.Artist, "    ");
-		current.Artist_strlen+=4;
-	}
-	if (current.Title_strlen > 21)
-	{
-		strcat(current.Title, "    ");
-		current.Title_strlen+=4;
-	}
-	if (current.Album_strlen > 21)
-	{
-		strcat(current.Album, "    ");
-		current.Album_strlen+=4;
-	}
-	if (current.Station_strlen > 21)
-	{
-		strcat(current.Station, "    ");
-		current.Station_strlen+=4;
-	}
+	song_metadata_clear(&current);
+	current.Artist_strlen = song_metadata_copy(current.Artist, sizeof(current.Artist), artist);
+	current.Title_strlen = song_metadata_copy(current.Title, sizeof(current.Title), title);
+	current.Station_strlen = song_metadata_copy(current.Station, sizeof(current.Station), station);
+	current.Album_strlen = song_metadata_copy(current.Album, sizeof(current.Album), name);
+	song_metadata_prepare_display(&current);
 }
 
 void static_text( char *msg, int len, int Y)
@@ -1431,125 +1377,46 @@ pid_t proc_find(const char* name)
 int parse_nowplaying(char *fname) 
 {
 	FILE *fp, *fpStationList;
-	char temp[512], tempStationList[512];
-	int k, count = 0;
+	char tempStationList[512];
 	int line_num = 0;
-	int find_result = 0;
-
-// 	FILE *fp;
-// 	char temp[512];
-// 	int k, count = 0;
+	int station_found = 0;
 
 	if((fp = fopen(fname, "r")) == NULL) {
 		return -1;
 	}
+	if (song_metadata_read_pandora(fp, &current) != 0) {
+		fclose(fp);
+		return -1;
+	}
+	if (fclose(fp) != 0)
+		return -1;
 
-	while(fgets(temp, 512, fp) != NULL) {
-		count++;
-		switch (count)
-		{
-			case 1 :
-				for (k = 0; k<strlen(temp)-2; k++)
-					current.Artist[k] = temp[k];
-				current.Artist[strlen(temp)] = 0;
-				break;
-			case 2 :
-				for (k = 0; k<strlen(temp)-2; k++)
-					current.Title[k] = temp[k];
-				current.Title[strlen(temp)] = 0;
-				break;
-			case 3 :
-				for (k = 0; k<strlen(temp)-2; k++)
-					current.Station[k] = temp[k];
-				current.Station[strlen(temp)] = 0;
-				if((fpStationList = fopen("/home/pi/.config/pianobar/stationlist", "r")) == NULL) {
-					return(-1);
-				}
-				while(fgets(tempStationList, 512, fpStationList) != NULL) {
-					if((strstr(tempStationList, current.Station)) != NULL) {
-						/*printf("A match found on line: %d\n", line_num);*/
-						/*printf("\n%s\n", temp);*/
-						current.StationNum = line_num;
-						find_result++;
-						break;
-					}
-					line_num++;
-				}
+	if (!current.Station[0])
+		return 0;
 
-				if(find_result == 0) {
-					/*printf("\nSorry, couldn't find a match.\n");*/
-					current.StationNum = 1;
-				}
+	fpStationList = fopen("/home/pi/.config/pianobar/stationlist", "r");
+	if (!fpStationList)
+		return -1;
 
-				//Close the file if still open.
-				if(fpStationList) {
-					fclose(fpStationList);
-				}
-				break;
-// 			case 3 :
-// 				for (k = 0; k<strlen(temp)-2; k++)
-// 					current.Station[k] = temp[k];
-// 				current.Station[strlen(temp)] = 0;
-// 				break;
-			case 4 :
-				current.Rating = atoi(temp);
-				break;
-			case 5 :
-				for (k = 0; k<strlen(temp)-2; k++)
-					current.CoverArt[k] = temp[k];
-				current.CoverArt[strlen(temp)] = 0;
-				break;
-			case 6 :
-				for (k = 0; k<strlen(temp)-1; k++)
-					current.Album[k] = temp[k];
-				current.Album[strlen(temp)] = 0;
-				break;
+	while (fgets(tempStationList, sizeof(tempStationList), fpStationList) != NULL) {
+		if (strstr(tempStationList, current.Station) != NULL) {
+			current.StationNum = line_num;
+			station_found = 1;
+			break;
 		}
+		line_num++;
 	}
 
-	//Close the file if still open.
-	if(fp) fclose(fp);
-
-	current.Artist_strlen = strlen(current.Artist);
-	current.Title_strlen = strlen(current.Title);
-	current.Album_strlen = strlen(current.Album);
-	current.Station_strlen = strlen(current.Station);
-
-	if (current.Artist_strlen > 21)
-	{
-		strcat(current.Artist, "    ");
-		current.Artist_strlen+=4;
-	}
-	if (current.Title_strlen > 21)
-	{
-		strcat(current.Title, "    ");
-		current.Title_strlen+=4;
-	}
-	if (current.Album_strlen > 21)
-	{
-		strcat(current.Album, "    ");
-		current.Album_strlen+=4;
-	}
-	if (current.Station_strlen > 21)
-	{
-		strcat(current.Station, "    ");
-		current.Station_strlen+=4;
-	}
+	fclose(fpStationList);
+	if (!station_found)
+		current.StationNum = 1;
 
 	return 0;
-};
+}
 
 void clear_current(void)
 {
-	char *msg;
-	msg = current.Artist;
-	memset(msg, 0, sizeof(char)*200);
-	msg = current.Title;
-	memset(msg, 0, sizeof(char)*200);
-	msg = current.Album;
-	memset(msg, 0, sizeof(char)*200);
-	msg = current.Station;
-	memset(msg, 0, sizeof(char)*200);
+	song_metadata_clear(&current);
 } 
 
 int clear_playlists(void)

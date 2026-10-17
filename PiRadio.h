@@ -20,6 +20,7 @@
 #include "/usr/include/libmpd-1.0/libmpd/libmpd.h"
 #include "bcm2835.h"
 #include "nju6676.h"
+#include "song_metadata.h"
 #include "fonts/SystemFont5x7.h"
 #include "fonts/Verdana_digits_24.h"
 //#include "mpd_playlists.h"
@@ -43,21 +44,6 @@ int internet_conn(char *addr, char *port);
 int parse_nowplaying(char *fname);
 void clear_current(void);
 // void display_current_song(void);
-typedef struct  
-{  
-	char 
-		  Artist[200],
-		  Title[200], 
-		  Album[200], 
-		  Station[200],
-		  CoverArt[200]; 
-	int  Rating,
-        StationNum,
-        Artist_strlen,
-        Title_strlen,
-        Album_strlen,
-        Station_strlen;
-} Song;
 void retr_msg(void);
 void retr_station_msg(void);
 
