@@ -9,7 +9,7 @@ LIBS = -lrt -lmpd
 _DEPS = nju6676.h bcm2835.h PiRadio.h station_index.h radio_playlist.h song_metadata.h radio_services.h utilities.h mpd_playlists.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = PiRadio.o bcm2835.o nju6676.o station_index.o radio_playlist.o song_metadata.o radio_services.o
+_OBJ = PiRadio.o bcm2835.o nju6676.o station_index.o radio_playlist.o song_metadata.o radio_services.o radio_mpd.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: %.c $(DEPS)
@@ -45,5 +45,5 @@ test_radio_playlist: test_radio_playlist.c radio_playlist.c radio_playlist.h
 test_song_metadata: test_song_metadata.c song_metadata.c song_metadata.h
 	$(CC) -o $@ test_song_metadata.c song_metadata.c -Wall -O2
 
-test_radio_services: test_radio_services.c radio_services.c radio_services.h
-	$(CC) -o $@ test_radio_services.c radio_services.c -Wall -O2
+test_radio_services: test_radio_services.c radio_services.c radio_mpd.c radio_services.h
+	$(CC) -o $@ test_radio_services.c radio_services.c radio_mpd.c -Wall -O2 $(LIBS)

@@ -17,7 +17,6 @@
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 #include <fcntl.h>
-#include "/usr/include/libmpd-1.0/libmpd/libmpd.h"
 #include "bcm2835.h"
 #include "nju6676.h"
 #include "song_metadata.h"
@@ -69,7 +68,6 @@ typedef enum
 
 // mpd
 void update_current_song( char *station, char *name, char *artist, char *title);
-int change_station( MpdObj *obj, const char *station);
 void disp_preset( int digit, int position );
 void capture_digit( int *station_digit, int val);
 int clear_playlists(void);

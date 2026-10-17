@@ -3,6 +3,7 @@
 #include "radio_playlist.h"
 #include "radio_services.h"
 #include <sys/wait.h>
+#include <sys/time.h>
 
 #define TIME_OUT 5  // One of the system's FSM transitions
 #define KEYSCAN_POLL_DELAY_MS 100
@@ -65,12 +66,11 @@ uint8_t fh, fw, maxchar;
 
 int station_digit[2];
 char station_name[50];
-mpd_Song *song;
 Song current;
 unsigned int updated_song = 0;
 int counter = 0;
 int station;
-MpdObj *obj = NULL;
+RadioMpdService *mpd_service = NULL;
 int iport = 6600;
 char *hostname;
 char *password;
@@ -115,23 +115,21 @@ static void run_command(const char *command)
 
 static void stop_mpd_playback_on_startup(void)
 {
-	MpdObj *startup_mpd;
+	RadioMpdService *startup_mpd;
 
 	if (!hostname)
 		hostname = "localhost";
 
-	startup_mpd = mpd_new(hostname, iport, password);
+	startup_mpd = radio_mpd_service_create(hostname, iport, password);
 	if (!startup_mpd) {
 		fprintf(stderr, "Unable to create MPD client during startup.\n");
 		return;
 	}
 
-	if (mpd_connect(startup_mpd) == 0) {
-		mpd_player_stop(startup_mpd);
-	} else {
+	if (radio_mpd_service_stop(startup_mpd) != 0) {
 		fprintf(stderr, "Unable to connect to MPD to stop startup playback.\n");
 	}
-	mpd_free(startup_mpd);
+	radio_mpd_service_free(startup_mpd);
 }
 
 static void send_pandora_action(RadioPandoraAction action)
@@ -374,18 +372,18 @@ void transition( int trigger)
 					stopServices( runningService );
 					break;
 				case KEYPAD_TUNE_UP:
-					station = station_index_step(station, 1, mpd_playlist_len);
-					if (station >= 0)
+					w = station_index_step(station, 1, mpd_playlist_len);
+					if (w >= 0 && radio_mpd_service_change_station(mpd_service, MPDplaylist[w]) == 0)
 					{
-						change_station( obj, MPDplaylist[station]);
+						station = w;
 						current.Title[0] = 0; // force a redraw of the screen
 					}
 					break;
 				case KEYPAD_TUNE_DN:
-					station = station_index_step(station, -1, mpd_playlist_len);
-					if (station >= 0)
+					w = station_index_step(station, -1, mpd_playlist_len);
+					if (w >= 0 && radio_mpd_service_change_station(mpd_service, MPDplaylist[w]) == 0)
 					{
-						change_station( obj, MPDplaylist[station]);
+						station = w;
 						current.Title[0] = 0; // force a redraw of the screen
 					}
 					break;
@@ -474,11 +472,12 @@ void stopServices( Services_t currentService )
 				paused = 0;
 				break;
 			case webRadioService:
-				if(!hostname)
-					hostname = "localhost";
-				obj = mpd_new(hostname, iport, password);
-				if(!mpd_connect(obj))
-					mpd_player_stop(obj);
+				if (mpd_service) {
+					if (radio_mpd_service_stop(mpd_service) != 0)
+						fprintf(stderr, "Unable to stop MPD playback.\n");
+					radio_mpd_service_free(mpd_service);
+					mpd_service = NULL;
+				}
 				current.Title[0] = 0; // force a redraw of the screen
 				break;
 			case allStop:
@@ -598,6 +597,7 @@ void funcWebRadio()
 	FILE *fp, *fplist;
 	char plistname[512];
 	RadioPlaylistEntry *playlist_entries = NULL;
+	RadioMpdSong mpd_song;
 	size_t playlist_count = 0;
 	size_t i;
 	int path_length;
@@ -663,10 +663,12 @@ void funcWebRadio()
 #ifdef DEBUG
 		printf("%s\n", hostname);
 #endif
-		obj = mpd_new(hostname, iport, password);
+		mpd_service = radio_mpd_service_create(hostname, iport, password);
+		if (!mpd_service)
+			return;
 
 		// if the service has stopped or there is an error, restart it
-		if(mpd_connect(obj)) {
+		if (radio_mpd_service_connect(mpd_service) != 0) {
 			run_command("mkdir /var/log/mpd");
 			run_command("touch /var/log/mpd/mpd.log");
 			run_command("sudo service mpd restart >/dev/null 2>&1");
@@ -683,7 +685,8 @@ void funcWebRadio()
 #ifdef DEBUG
 		printf("%s\n", MPDplaylist[station]);
 #endif
-		change_station( obj, MPDplaylist[station]);
+		if (radio_mpd_service_change_station(mpd_service, MPDplaylist[station]) != 0)
+			fprintf(stderr, "Unable to start MPD playlist: %s\n", MPDplaylist[station]);
 
 		// now show the radio tagline
 		bcm2835_delay(1000);
@@ -700,19 +703,15 @@ void funcWebRadio()
 		if (scrollCount > 4)  // needed to slow down refresh of screen
 		{
 			// can we create a connection?
-			if(!mpd_connect(obj))
+			if (radio_mpd_service_current_song(mpd_service, &mpd_song) >= 0)
 			{
-				// connection established, 
-				mpd_status_update(obj);
-				// retrieve the current information
-				song = mpd_playlist_get_current_song(obj);
-
 				// check for valid info, otherwise we make up our own
-				if (song && song->title)
+				if (mpd_song.title[0])
 				{
-					if (strncmp(song->title,current.Title,21) != 0)
+					if (strncmp(mpd_song.title,current.Title,21) != 0)
 					{
-						update_current_song( (char *)MPDplaylist[station], song->name, song->artist, song->title);
+						update_current_song(MPDplaylist[station], mpd_song.name,
+								   mpd_song.artist, mpd_song.title);
 						counter = 0;
 						updated_song = 1;
 						// static text version here...
@@ -1305,23 +1304,6 @@ int drawclock( int oldMinutes ) {
 		nju6676Display();
 	}
 	return minutes;
-}
-
-int change_station( MpdObj *obj, const char *station)
-{
-	if(!mpd_connect(obj))
-	{
-		mpd_playlist_clear(obj);
-		mpd_playlist_queue_load(obj, station);
-		mpd_playlist_queue_commit(obj);
-		mpd_player_play(obj);
-	} else {
-		printf("ERROR : Cannot change station to: %s\n", station);
-		return 1;
-	}
-
-	return 0;
-
 }
 
 void update_current_song( char *station, char *name, char *artist, char *title)
