@@ -20,6 +20,7 @@
 #include "bcm2835.h"
 #include "nju6676.h"
 #include "song_metadata.h"
+#include "radio_controller.h"
 #include "fonts/SystemFont5x7.h"
 #include "fonts/Verdana_digits_24.h"
 //#include "mpd_playlists.h"
@@ -45,17 +46,6 @@ void clear_current(void);
 // void display_current_song(void);
 void retr_msg(void);
 void retr_station_msg(void);
-
-typedef enum 
-{
-	IDLE,					//LCD dimmed, shows time and date
-	SHOW_TIME,			// LCD on, shows time and date
-	FUNCTION_SELECT, 	// Displays menu for AirPlay, Pandora, or Internet Radio
-	AIRPLAY,				// Displays AirPlay logo and accepts connections
-	PANDORA,				// Displays current station/song/artist and accepts user input
-	WEB_RADIO,			// Displays current station/song and accepts user input
-	PRESET_SELECT		// Accepts keypad input
-} States_t;
 
 typedef enum
 {

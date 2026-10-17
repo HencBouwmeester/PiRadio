@@ -4,7 +4,7 @@
 #include "radio_services.h"
 #include <sys/time.h>
 
-#define TIME_OUT 5  // One of the system's FSM transitions
+#define TIME_OUT (-2)
 #define KEYSCAN_POLL_DELAY_MS 100
 #define KEYSCAN_DEBOUNCE_DELAY_MS 10
 #define KEYSCAN_STABLE_READS 2
@@ -237,216 +237,126 @@ int main(){
 
 }
 
+static RadioControllerEvent controller_event(int trigger)
+{
+	if (trigger == TIME_OUT)
+		return RADIO_EVENT_TIMEOUT;
+	if (trigger == KEYPAD_NONE)
+		return RADIO_EVENT_PRESET_COMMIT;
+	if (trigger == KEYPAD_PWR)
+		return RADIO_EVENT_POWER;
+	if (trigger == KEYPAD_BAND)
+		return RADIO_EVENT_BAND;
+	if (trigger == KEYPAD_PRESET)
+		return RADIO_EVENT_PRESET;
+	if (trigger == KEYPAD_TUNE_UP)
+		return RADIO_EVENT_TUNE_UP;
+	if (trigger == KEYPAD_TUNE_DN)
+		return RADIO_EVENT_TUNE_DOWN;
+	if (trigger == KEYPAD_SEEK_UP)
+		return RADIO_EVENT_LOVE;
+	if (trigger == KEYPAD_SEEK_DN)
+		return RADIO_EVENT_BAN;
+	if (trigger == KEYPAD_HD_UP)
+		return RADIO_EVENT_NEXT_SONG;
+	if (trigger == KEYPAD_HD_DN)
+		return RADIO_EVENT_TIRED;
+	if (trigger == KEYPAD_FREQUENCY)
+		return RADIO_EVENT_PAUSE;
+	return RADIO_EVENT_NONE;
+}
+
+static void apply_controller_action(RadioControllerResult result)
+{
+	switch (result.action) {
+	case RADIO_ACTION_WAKE:
+		idleStatus = 0;
+		break;
+	case RADIO_ACTION_STOP_SERVICE:
+		stopServices(runningService);
+		break;
+	case RADIO_ACTION_RETURN_FROM_MENU:
+		if (state == WEB_RADIO)
+			current.Title[0] = 0;
+		else if (state == PANDORA)
+			oldTime = -1;
+		break;
+	case RADIO_ACTION_SELECT_PANDORA_STATION:
+	case RADIO_ACTION_SELECT_PANDORA_PRESET:
+		if (select_pandora_station(result.station_index) == 0) {
+			station = result.station_index;
+			current.StationNum = station;
+			if (result.action == RADIO_ACTION_SELECT_PANDORA_PRESET)
+				retr_station_msg();
+			else
+				retr_msg();
+			updated_song = 0;
+		}
+		break;
+	case RADIO_ACTION_PANDORA_LOVE: {
+		int width = pandora_heart[0];
+		int height = pandora_heart[1];
+		send_pandora_action(RADIO_PANDORA_LOVE);
+		nju6676DrawBitmap(120, 56, &pandora_heart[2], width, height, WHITE);
+		nju6676Display();
+		delay(300);
+		nju6676FillRect(120, 56, 8, 8, BLUE);
+		nju6676Display();
+		delay(300);
+		nju6676DrawBitmap(120, 56, &pandora_heart[2], width, height, WHITE);
+		nju6676Display();
+		break;
+	}
+	case RADIO_ACTION_PANDORA_BAN:
+		send_pandora_action(RADIO_PANDORA_BAN);
+		retr_msg();
+		updated_song = 0;
+		break;
+	case RADIO_ACTION_PANDORA_NEXT:
+		send_pandora_action(RADIO_PANDORA_NEXT);
+		retr_msg();
+		updated_song = 0;
+		break;
+	case RADIO_ACTION_PANDORA_TIRED:
+		send_pandora_action(RADIO_PANDORA_TIRED);
+		retr_msg();
+		updated_song = 0;
+		break;
+	case RADIO_ACTION_PANDORA_PAUSE:
+		if (radio_pandora_send_action("/home/pi/.config/pianobar/ctl",
+					      RADIO_PANDORA_PAUSE) == 0) {
+			paused = !paused;
+			if (!paused) {
+				nju6676FillRect(110, 56, 7, 8, BLUE);
+				nju6676Display();
+			}
+		} else {
+			perror("Unable to pause Pianobar");
+		}
+		break;
+	case RADIO_ACTION_SELECT_WEB_STATION:
+		if (radio_mpd_service_change_station(mpd_service,
+						     MPDplaylist[result.station_index]) == 0) {
+			station = result.station_index;
+			current.Title[0] = 0;
+		}
+		break;
+	case RADIO_ACTION_NONE:
+		break;
+	}
+}
+
 void transition( int trigger)
 {
-	int w, h;
+	RadioControllerResult result;
 
-	switch (state)
-	{
-		case IDLE:
-			if (trigger == KEYPAD_PWR ) 
-			{
-				state = SHOW_TIME;
-				idleStatus = 0;
-			}
-			break;
-		case SHOW_TIME:
-			if ( trigger == KEYPAD_BAND )
-			{
-				state = FUNCTION_SELECT;
-				prevState = SHOW_TIME;
-			}
-			else if ( trigger == TIME_OUT )
-				state = IDLE;
-			break;
-		case FUNCTION_SELECT:
-			if ( trigger == TIME_OUT )
-			{
-				state = prevState;
-				if (state == WEB_RADIO)
-					current.Title[0] = 0; // force a redraw of the screen
-				else if (state == PANDORA)
-					oldTime = -1;
-			}
-			break;
-		case AIRPLAY:
-			if (trigger == KEYPAD_BAND)
-			{
-				state = FUNCTION_SELECT;
-				prevState = AIRPLAY;
-			}
-			else if (trigger == KEYPAD_PWR)
-			{
-				state = IDLE;
-				prevState = AIRPLAY;
-				stopServices( runningService );
-			}
-			break;
-		case PANDORA:
-			switch (trigger)
-			{
-				case KEYPAD_BAND:
-					state = FUNCTION_SELECT;
-					prevState = PANDORA;
-					break;
-				case KEYPAD_PWR:
-					state = IDLE;
-					prevState = PANDORA;
-					stopServices( runningService );
-					break;
-				case KEYPAD_PRESET:
-					state = PRESET_SELECT;
-					prevState = PANDORA;
-					break;
-				case KEYPAD_TUNE_UP:
-					// next station
-					w = station_index_step(station, 1, num_stations);
-					if (w >= 0 && select_pandora_station(w) == 0) {
-						station = w;
-						current.StationNum = station;
-						retr_msg();
-						updated_song = 0;
-					}
-					break;
-				case KEYPAD_TUNE_DN:
-					// previous station
-					w = station_index_step(station, -1, num_stations);
-					if (w >= 0 && select_pandora_station(w) == 0) {
-						station = w;
-						current.StationNum = station;
-						retr_msg();
-						updated_song = 0;
-					}
-					break;
-				case KEYPAD_SEEK_UP:
-					// love song
-					send_pandora_action(RADIO_PANDORA_LOVE);
-
-					// we are going to blink the heart so that it is obvious that it has been done
-					w = pandora_heart[0]; h = pandora_heart[1];
-					nju6676DrawBitmap(120,56,&pandora_heart[2],w,h,WHITE);
-					nju6676Display();
-					delay(300);
-					nju6676FillRect(120,56,8,8,BLUE);
-					nju6676Display();
-					delay(300);
-					w = pandora_heart[0]; h = pandora_heart[1];
-					nju6676DrawBitmap(120,56,&pandora_heart[2],w,h,WHITE);
-					nju6676Display();
-					break;
-				case KEYPAD_SEEK_DN:
-					// ban song
-					send_pandora_action(RADIO_PANDORA_BAN);
-					// wait for the next refresh so display a message that we understood the input
-					retr_msg();
-					updated_song = 0;
-					break;
-				case KEYPAD_HD_UP:
-					// next song
-					send_pandora_action(RADIO_PANDORA_NEXT);
-					// wait for the next refresh so display a message that we understood the input
-					retr_msg();
-					updated_song = 0;
-					break;
-				case KEYPAD_HD_DN:
-					// tired song
-					send_pandora_action(RADIO_PANDORA_TIRED);
-					// wait for the next refresh so display a message that we understood the input
-					retr_msg();
-					updated_song = 0;
-					break;
-				case KEYPAD_FREQUENCY:
-					// pause/un-pause the currently playing song
-					if (radio_pandora_send_action("/home/pi/.config/pianobar/ctl",
-								      RADIO_PANDORA_PAUSE) == 0)
-						paused = !paused;
-					else
-						perror("Unable to pause Pianobar");
-					if (!paused)
-					{
-						nju6676FillRect(110,56,7,8,BLUE);
-						nju6676Display();
-					}
-					break;
-			}
-#ifdef DEBUG
-			printf("State: PANDORA\n");
-#endif
-			break;
-		case WEB_RADIO:
-			switch (trigger)
-			{
-				case KEYPAD_BAND:
-					state = FUNCTION_SELECT;
-					prevState = WEB_RADIO;
-					break;
-				case KEYPAD_PWR:
-					state = IDLE;
-					prevState = WEB_RADIO;
-					stopServices( runningService );
-					break;
-				case KEYPAD_TUNE_UP:
-					w = station_index_step(station, 1, mpd_playlist_len);
-					if (w >= 0 && radio_mpd_service_change_station(mpd_service, MPDplaylist[w]) == 0)
-					{
-						station = w;
-						current.Title[0] = 0; // force a redraw of the screen
-					}
-					break;
-				case KEYPAD_TUNE_DN:
-					w = station_index_step(station, -1, mpd_playlist_len);
-					if (w >= 0 && radio_mpd_service_change_station(mpd_service, MPDplaylist[w]) == 0)
-					{
-						station = w;
-						current.Title[0] = 0; // force a redraw of the screen
-					}
-					break;
-				case KEYPAD_PRESET:
-					state = PRESET_SELECT;
-					prevState = WEB_RADIO;
-					break;
-			}
-#ifdef DEBUG
-			printf("State: WEB_RADIO\n");
-#endif
-			break;
-		case PRESET_SELECT:
-			if ( trigger == TIME_OUT )
-			{
-				state = prevState;
-				if (state == WEB_RADIO)
-					current.Title[0] = 0; // force a redraw of the screen
-				else if (state == PANDORA)
-					oldTime = -1;
-			}
-			else
-			{
-				state = prevState;
-				if (state == WEB_RADIO)
-					transition(KEYPAD_TUNE_DN); // station is returned one too high on purpose, so this allows us to use TUNE_DN
-				else if (state == PANDORA)
-				{
-					if (num_stations > 0) {
-						w = station > 0 ? station - 1 : 0;
-						if (w >= num_stations)
-							w = num_stations - 1;
-						if (select_pandora_station(w) == 0) {
-							station = w;
-							current.StationNum = station;
-							retr_station_msg();
-							updated_song = 0;
-						}
-					}
-				}
-			}
-#ifdef DEBUG
-			printf("State: PRESET_SELECT\n");
-#endif
-			break;
-		default:
-				break;
-		}
-	}
+	result = radio_controller_transition(state, prevState, controller_event(trigger),
+					     station, num_stations, mpd_playlist_len);
+	state = result.state;
+	prevState = result.previous_state;
+	apply_controller_action(result);
+	return;
+}
 
 void idle()
 {
@@ -562,22 +472,22 @@ void functionSelect()
 			switch (key)
 			{
 				case KEYPAD_1:
-					state = AIRPLAY;
+					state = radio_controller_select_service(1);
 					timeOut = 0;
 					break;
 				case KEYPAD_2:
-					state = PANDORA;
+					state = radio_controller_select_service(2);
 					timeOut = 0;
 					break;
 				case KEYPAD_3:
-					state = WEB_RADIO;
+					state = radio_controller_select_service(3);
 					timeOut = 0;
 					break;
 				case KEYPAD_BAND:
 					timeOut = 1;
 					break;
 				case KEYPAD_PWR:
-					state = IDLE;
+					state = radio_controller_select_service(0);
 					timeOut = 0;
 					break;
 			}
@@ -977,7 +887,7 @@ void funcPreset(void)
 			switch (key)
 			{
 				case KEYPAD_PWR:
-					state = IDLE;
+					state = radio_controller_cancel_preset();
 					entryComplete = 1;
 					break;
 				case KEYPAD_PRESET:
