@@ -86,7 +86,7 @@ void update_current_song( char *station, char *name, char *artist, char *title);
 int change_station( MpdObj *obj, const char *station);
 void disp_preset( int digit, int position );
 void capture_digit( int *station_digit, int val);
-void clear_playlists();
+int clear_playlists(void);
 
 int set_i2c_register(int file, unsigned char addr, unsigned char reg, unsigned char value);
 int get_i2c_register(int file, unsigned char addr, unsigned char reg, unsigned char *val);

@@ -1,4 +1,6 @@
 #include "PiRadio.h"
+#include "station_index.h"
+#include "radio_playlist.h"
 
 #define TIME_OUT 5  // One of the system's FSM transitions
 #define KEYSCAN_POLL_DELAY_MS 100
@@ -88,7 +90,7 @@ int num_stations = 0;
 FILE *fp;
 
 int mpd_playlist_len = 1;
-char *MPDplaylist[200];
+char MPDplaylist[RADIO_PLAYLIST_LIMIT][RADIO_PLAYLIST_FILENAME_CAPACITY];
 
 int paused = 0;
 int show_pause = 0;
@@ -311,16 +313,20 @@ void transition( int trigger)
 					stopServices( runningService );
 					break;
 				case KEYPAD_TUNE_UP:
-					station++;
-					station = station % mpd_playlist_len;
-					change_station( obj, MPDplaylist[station]);
-					current.Title[0] = 0; // force a redraw of the screen
+					station = station_index_step(station, 1, mpd_playlist_len);
+					if (station >= 0)
+					{
+						change_station( obj, MPDplaylist[station]);
+						current.Title[0] = 0; // force a redraw of the screen
+					}
 					break;
 				case KEYPAD_TUNE_DN:
-					station--;
-					station = station % mpd_playlist_len;
-					change_station( obj, MPDplaylist[station]);
-					current.Title[0] = 0; // force a redraw of the screen
+					station = station_index_step(station, -1, mpd_playlist_len);
+					if (station >= 0)
+					{
+						change_station( obj, MPDplaylist[station]);
+						current.Title[0] = 0; // force a redraw of the screen
+					}
 					break;
 				case KEYPAD_PRESET:
 					state = PRESET_SELECT;
@@ -528,58 +534,67 @@ void funcWebRadio()
 {
 	int w, h, k, X;
 	FILE *fp, *fplist;
-	char temp[512];
 	char plistname[512];
-	char plistlink[512];
+	RadioPlaylistEntry *playlist_entries = NULL;
+	size_t playlist_count = 0;
+	size_t i;
+	int path_length;
+	int write_ok;
 
 
 	if ( runningService != webRadioService )
 	{
 
 		stopServices( runningService );
-
-		// clear out the old playlists 
-		//system("rm /var/lib/mpd/playlists/*.m3u");
-#ifdef DEBUG
-	printf("Preparing to clear the directory...\n");
-#endif
-		clear_playlists();
-#ifdef DEBUG
-	printf("Now in the funcWebRadio...\n");
-#endif
 		mpd_playlist_len = 0;
 
-		// create the new playlists from text file
 		if((fp = fopen("/home/pi/webradioplaylist.txt", "r")) == NULL) {
 			return;
 		}
-
-		size_t ln;
-		while(fgets(temp, 512, fp) != NULL) {
-			ln = strlen(temp) - 1;
-			if (temp[ln] == '\n')
-				temp[ln] = '\0';
-			sprintf(plistname,"/var/lib/mpd/playlists/%s",temp);
-
-			// copy the name of the station to an array
-			temp[ln-4] = '\0';  // needed to strip file extension
-			MPDplaylist[mpd_playlist_len] = malloc(ln-3); // allocate storage
-			strcpy(MPDplaylist[mpd_playlist_len],temp); 
-
-			// open new filename and store link
-			fgets(plistlink, 512, fp);
-			if((fplist = fopen(plistname,"w")) == NULL) {
-				return;
-			} 
-			else {
-				fputs(plistlink, fplist);
-				fclose(fplist);
-			}
-			mpd_playlist_len++;
+		if (radio_playlist_load(fp, &playlist_entries, &playlist_count) != 0) {
+			fclose(fp);
+			fprintf(stderr, "Invalid web radio playlist configuration.\n");
+			return;
+		}
+		fclose(fp);
+		if (playlist_count == 0) {
+			radio_playlist_free(playlist_entries);
+			return;
 		}
 
-		if(fp)
-			fclose(fp);
+		if (clear_playlists() != 0) {
+			radio_playlist_free(playlist_entries);
+			return;
+		}
+		mpd_playlist_len = 0;
+
+		for (i = 0; i < playlist_count; i++) {
+			path_length = snprintf(plistname, sizeof(plistname),
+					       "/var/lib/mpd/playlists/%s",
+					       playlist_entries[i].filename);
+			if (path_length < 0 || (size_t)path_length >= sizeof(plistname)) {
+				radio_playlist_free(playlist_entries);
+				return;
+			}
+
+			fplist = fopen(plistname, "w");
+			if (!fplist) {
+				radio_playlist_free(playlist_entries);
+				return;
+			}
+			write_ok = fprintf(fplist, "%s\n", playlist_entries[i].url) >= 0;
+			if (fclose(fplist) != 0)
+				write_ok = 0;
+			if (!write_ok) {
+				radio_playlist_free(playlist_entries);
+				return;
+			}
+
+			snprintf(MPDplaylist[i], sizeof(MPDplaylist[i]), "%s",
+				 playlist_entries[i].name);
+		}
+		mpd_playlist_len = (int)playlist_count;
+		radio_playlist_free(playlist_entries);
 
 		if(!hostname)
 			hostname = "localhost";
@@ -1519,19 +1534,26 @@ void clear_current(void)
 	memset(msg, 0, sizeof(char)*200);
 } 
 
-void clear_playlists()
+int clear_playlists(void)
 {
-    // These are data types defined in the "dirent" header
-    DIR *theFolder = opendir("/var/lib/mpd/playlists");
-    struct dirent *next_file;
-    char filepath[256];
+	DIR *theFolder = opendir("/var/lib/mpd/playlists");
+	struct dirent *next_file;
+	int result = 0;
 
-    while ( (next_file = readdir(theFolder)) != NULL )
-    {
-	if (0==strcmp(next_file->d_name, ".") || 0==strcmp(next_file->d_name, "..")) { continue; }
-        // build the path for each file in the folder
-        sprintf(filepath, "%s/%s", "/var/lib/mpd/playlists", next_file->d_name);
-        remove(filepath);
-    }
-    closedir(theFolder);
+	if (!theFolder) {
+		perror("Unable to open MPD playlist directory");
+		return -1;
+	}
+
+	while ((next_file = readdir(theFolder)) != NULL) {
+	if (strcmp(next_file->d_name, ".") == 0 ||
+	    strcmp(next_file->d_name, "..") == 0)
+		continue;
+	if (unlinkat(dirfd(theFolder), next_file->d_name, 0) != 0)
+		result = -1;
+	}
+
+	if (closedir(theFolder) != 0)
+	result = -1;
+	return result;
 }
