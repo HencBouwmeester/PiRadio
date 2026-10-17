@@ -1,6 +1,8 @@
 #ifndef RADIO_SERVICES_H
 #define RADIO_SERVICES_H
 
+#include <stdio.h>
+
 typedef enum {
 	RADIO_PANDORA_LOVE,
 	RADIO_PANDORA_BAN,
@@ -35,6 +37,7 @@ typedef enum {
 int radio_pandora_send_action(const char *control_path, RadioPandoraAction action);
 int radio_pandora_select_station(const char *control_path, int index, int station_count);
 int radio_pandora_clear_nowplaying(const char *nowplaying_path);
+int radio_pandora_count_stations(FILE *station_list);
 int radio_pandora_stop(const char *control_path);
 
 RadioMpdService *radio_mpd_service_create(const char *hostname, int port, const char *password);

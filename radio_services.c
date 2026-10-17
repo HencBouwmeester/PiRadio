@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <dirent.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +76,27 @@ int radio_pandora_select_station(const char *control_path, int index, int statio
 int radio_pandora_clear_nowplaying(const char *nowplaying_path)
 {
 	return write_text_file(nowplaying_path, "\n");
+}
+
+int radio_pandora_count_stations(FILE *station_list)
+{
+	char line[512];
+	int count = 0;
+
+	if (!station_list) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	while (fgets(line, sizeof(line), station_list) != NULL) {
+		if (count == INT_MAX) {
+			errno = EOVERFLOW;
+			return -1;
+		}
+		count++;
+	}
+
+	return ferror(station_list) ? -1 : count;
 }
 
 int radio_service_action(RadioManagedService service, RadioServiceAction action)

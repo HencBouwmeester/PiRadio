@@ -95,23 +95,40 @@ char MPDplaylist[RADIO_PLAYLIST_LIMIT][RADIO_PLAYLIST_FILENAME_CAPACITY];
 int paused = 0;
 int show_pause = 0;
 
-static void stop_mpd_playback_on_startup(void)
+static int stop_mpd_playback_on_startup(void)
 {
+	struct timespec retry_delay = {0, 250000000};
+	struct timespec remaining_delay;
 	RadioMpdService *startup_mpd;
+	int attempt;
 
 	if (!hostname)
 		hostname = "localhost";
 
-	startup_mpd = radio_mpd_service_create(hostname, iport, password);
-	if (!startup_mpd) {
-		fprintf(stderr, "Unable to create MPD client during startup.\n");
-		return;
+	for (attempt = 0; attempt < 20; attempt++) {
+		startup_mpd = radio_mpd_service_create(hostname, iport, password);
+		if (startup_mpd) {
+			if (radio_mpd_service_stop(startup_mpd) == 0) {
+				radio_mpd_service_free(startup_mpd);
+				fprintf(stderr, "Stopped MPD playback during startup.\n");
+				return 0;
+			}
+			radio_mpd_service_free(startup_mpd);
+		}
+
+		if (attempt < 19) {
+			while (nanosleep(&retry_delay, &remaining_delay) != 0) {
+				if (errno != EINTR)
+					break;
+				retry_delay = remaining_delay;
+			}
+			retry_delay.tv_sec = 0;
+			retry_delay.tv_nsec = 250000000;
+		}
 	}
 
-	if (radio_mpd_service_stop(startup_mpd) != 0) {
-		fprintf(stderr, "Unable to connect to MPD to stop startup playback.\n");
-	}
-	radio_mpd_service_free(startup_mpd);
+	fprintf(stderr, "Unable to stop MPD playback after startup retries.\n");
+	return -1;
 }
 
 static void send_pandora_action(RadioPandoraAction action)
@@ -148,7 +165,10 @@ int main(){
 
 	hostname = getenv("MPD_HOST");
 	password = getenv("MPD_PASSWORD");
-	stop_mpd_playback_on_startup();
+	if (stop_mpd_playback_on_startup() != 0) {
+		fprintf(stderr, "Exiting because MPD playback could not be stopped.\n");
+		return 1;
+	}
 	TIMER_CLEAR;
 	SHOWTIME_CLEAR;
 	SHOWTIME_START;
@@ -774,7 +794,10 @@ void funcWebRadio()
 int funcPandora(void)
 {
 	int w, h;
-	char station_line[512];
+	int previous_station_count = -1;
+	int station_count = 0;
+	int attempt;
+	FILE *station_list;
 
 	if ( runningService != pandoraService )
 	{
@@ -813,15 +836,29 @@ int funcPandora(void)
 		retr_msg();
 		updated_song = 0;
 
-		ch = 0; station = 0; num_stations = 0;
-		fp = fopen("/home/pi/.config/pianobar/stationlist","r");
-		if (!fp) {
-			perror("Unable to open Pianobar station list");
-		} else {
-			while (fgets(station_line, sizeof(station_line), fp) != NULL)
-				num_stations++;
-			fclose(fp);
+		station = 0;
+		num_stations = 0;
+		for (attempt = 0; attempt < 10; attempt++) {
+			station_list = fopen("/home/pi/.config/pianobar/stationlist", "r");
+			if (station_list) {
+				station_count = radio_pandora_count_stations(station_list);
+				if (fclose(station_list) != 0)
+					station_count = -1;
+			} else {
+				station_count = -1;
+			}
+
+			if (station_count > 0 && station_count == previous_station_count) {
+				num_stations = station_count;
+				break;
+			}
+			previous_station_count = station_count;
+			bcm2835_delay(500);
 		}
+		if (num_stations == 0)
+			fprintf(stderr, "Unable to load a stable Pianobar station list.\n");
+		else
+			fprintf(stderr, "Loaded %d Pianobar stations.\n", num_stations);
 
 		nju6676Display();
 

@@ -19,6 +19,7 @@ static void read_control(const char *path, char *contents, size_t capacity)
 int main(void)
 {
 	RadioMpdSong song;
+	FILE *station_list;
 	char path[] = "/tmp/piradio-control-XXXXXX";
 	char contents[32];
 	int descriptor = mkstemp(path);
@@ -52,6 +53,22 @@ int main(void)
 	assert(radio_mpd_service_current_song(NULL, &song) < 0);
 	assert(radio_service_action((RadioManagedService)99, RADIO_SERVICE_START) != 0);
 	assert(radio_service_action(RADIO_MANAGED_MPD, (RadioServiceAction)99) != 0);
+
+	station_list = tmpfile();
+	assert(station_list != NULL);
+	for (int station = 0; station < 17; station++)
+		assert(fprintf(station_list, "Station %d\n", station + 1) > 0);
+	assert(fputs("Station 18", station_list) >= 0);
+	rewind(station_list);
+	assert(radio_pandora_count_stations(station_list) == 18);
+	fclose(station_list);
+
+	station_list = tmpfile();
+	assert(station_list != NULL);
+	assert(radio_pandora_count_stations(station_list) == 0);
+	fclose(station_list);
+	assert(radio_pandora_count_stations(NULL) == -1);
+
 	assert(unlink(path) == 0);
 	return 0;
 }
