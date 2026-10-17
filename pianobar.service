@@ -1,0 +1,12 @@
+[Unit]
+Description=Pianobar radio client for PiRadio
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/pianobar
+Restart=no
+StandardOutput=null
+StandardError=journal

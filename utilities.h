@@ -25,6 +25,5 @@ void GPIO_Setup( void );
 void LED_state( int State );
 int SPI_Setup( void );
 void SPI_Finish( void );
-pid_t proc_find(const char* name);
 
 #endif

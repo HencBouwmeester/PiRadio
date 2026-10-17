@@ -2,7 +2,6 @@
 #include "station_index.h"
 #include "radio_playlist.h"
 #include "radio_services.h"
-#include <sys/wait.h>
 #include <sys/time.h>
 
 #define TIME_OUT 5  // One of the system's FSM transitions
@@ -96,23 +95,6 @@ char MPDplaylist[RADIO_PLAYLIST_LIMIT][RADIO_PLAYLIST_FILENAME_CAPACITY];
 int paused = 0;
 int show_pause = 0;
 
-static void run_command(const char *command)
-{
-	int status = system(command);
-
-	if (status == -1) {
-		perror("Unable to start command");
-	} else if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		fprintf(stderr, "Command exited with status %d: %s\n",
-			WEXITSTATUS(status), command);
-	} else if (WIFSIGNALED(status)) {
-		fprintf(stderr, "Command terminated by signal %d: %s\n",
-			WTERMSIG(status), command);
-	} else if (!WIFEXITED(status)) {
-		fprintf(stderr, "Command did not exit normally: %s\n", command);
-	}
-}
-
 static void stop_mpd_playback_on_startup(void)
 {
 	RadioMpdService *startup_mpd;
@@ -146,6 +128,18 @@ static int select_pandora_station(int index)
 		return -1;
 	}
 	return 0;
+}
+
+static int prepare_mpd_log(void)
+{
+	FILE *log_file;
+
+	if (mkdir("/var/log/mpd", 0755) != 0 && errno != EEXIST)
+		return -1;
+	log_file = fopen("/var/log/mpd/mpd.log", "a");
+	if (!log_file)
+		return -1;
+	return fclose(log_file);
 }
 
 int main(){
@@ -465,10 +459,12 @@ void stopServices( Services_t currentService )
 		switch (currentService)
 		{
 			case airPlayService:
-				run_command("sudo service shairport stop >/dev/null 2>&1");
+				if (radio_service_action(RADIO_MANAGED_AIRPLAY, RADIO_SERVICE_STOP) != 0)
+					perror("Unable to stop AirPlay service");
 				break;
 			case pandoraService:
-				send_pandora_action(RADIO_PANDORA_QUIT);
+				if (radio_pandora_stop("/home/pi/.config/pianobar/ctl") != 0)
+					perror("Unable to stop Pianobar service");
 				paused = 0;
 				break;
 			case webRadioService:
@@ -586,7 +582,8 @@ void funcAirplay()
 		w = airplay[0]; h = airplay[1];
 		nju6676DrawBitmap((SCREEN_WIDTH-w)/2,(SCREEN_HEIGHT-h)/2,&airplay[2],w,h,WHITE);
 		nju6676Display();
-		run_command("sudo service shairport restart >/dev/null 2>&1");
+		if (radio_service_action(RADIO_MANAGED_AIRPLAY, RADIO_SERVICE_RESTART) != 0)
+			perror("Unable to start AirPlay service");
 		runningService = airPlayService;
 	}
 }
@@ -669,9 +666,10 @@ void funcWebRadio()
 
 		// if the service has stopped or there is an error, restart it
 		if (radio_mpd_service_connect(mpd_service) != 0) {
-			run_command("mkdir /var/log/mpd");
-			run_command("touch /var/log/mpd/mpd.log");
-			run_command("sudo service mpd restart >/dev/null 2>&1");
+			if (prepare_mpd_log() != 0)
+				perror("Unable to prepare MPD log");
+			if (radio_service_action(RADIO_MANAGED_MPD, RADIO_SERVICE_RESTART) != 0)
+				perror("Unable to restart MPD service");
 		}
 
 		// draw the splash screen
@@ -792,9 +790,10 @@ int funcPandora(void)
 		nju6676DrawHLine(0,54,128,WHITE);
 
 		// check to see if pianobar is already running
-		pid_t pid = proc_find("pianobar");
-		// it is running, so quit it
-		if (pid != -1) send_pandora_action(RADIO_PANDORA_QUIT);
+		if (radio_pandora_stop("/home/pi/.config/pianobar/ctl") != 0) {
+			perror("Unable to stop Pianobar before restart");
+			return 1;
+		}
 
 		// now it is not running, so clear out the current song info
 		if (radio_pandora_clear_nowplaying("/home/pi/.config/pianobar/nowplaying") != 0) {
@@ -804,8 +803,11 @@ int funcPandora(void)
 		if (stat("/home/pi/.config/pianobar/nowplaying", &nowplayingStat) < 0)
 			return 1;
 		oldTime = nowplayingStat.st_mtime;
-		// start pianobar
-		run_command("su - pi -c \"nohup pianobar >/dev/null 2>&1&\"");
+		// start pianobar under the pi account via its systemd unit
+		if (radio_service_action(RADIO_MANAGED_PANDORA, RADIO_SERVICE_START) != 0) {
+			perror("Unable to start Pianobar service");
+			return 1;
+		}
 		bcm2835_delay(5000);
 		// wait for the next refresh
 		retr_msg();
@@ -1357,49 +1359,6 @@ void retr_station_msg(void)
 	nju6676GotoXY((SCREEN_WIDTH-(strlen(msg)-1)*5-strlen(msg)-2)/2,8);
 	nju6676Puts(msg);
 	nju6676Display();
-}
-
-pid_t proc_find(const char* name) 
-{
-    DIR* dir;
-    struct dirent* ent;
-    char* endptr;
-    char buf[512];
-
-    if (!(dir = opendir("/proc"))) {
-        perror("can't open /proc");
-        return -1;
-    }
-
-    while((ent = readdir(dir)) != NULL) {
-        /* if endptr is not a null character, the directory is not
-         * entirely numeric, so ignore it */
-        long lpid = strtol(ent->d_name, &endptr, 10);
-        if (*endptr != '\0') {
-            continue;
-        }
-
-        /* try to open the cmdline file */
-        snprintf(buf, sizeof(buf), "/proc/%ld/cmdline", lpid);
-        FILE* fp = fopen(buf, "r");
-
-        if (fp) {
-            if (fgets(buf, sizeof(buf), fp) != NULL) {
-                /* check the first token in the file, the program name */
-                char* first = strtok(buf, " ");
-                if (!strcmp(first, name)) {
-                    fclose(fp);
-                    closedir(dir);
-                    return (pid_t)lpid;
-                }
-            }
-            fclose(fp);
-        }
-
-    }
-
-    closedir(dir);
-    return -1;
 }
 
 int parse_nowplaying(char *fname) 

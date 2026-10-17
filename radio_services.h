@@ -20,9 +20,22 @@ typedef struct {
 	char title[RADIO_MPD_TEXT_CAPACITY];
 } RadioMpdSong;
 
+typedef enum {
+	RADIO_MANAGED_PANDORA,
+	RADIO_MANAGED_AIRPLAY,
+	RADIO_MANAGED_MPD
+} RadioManagedService;
+
+typedef enum {
+	RADIO_SERVICE_START,
+	RADIO_SERVICE_STOP,
+	RADIO_SERVICE_RESTART
+} RadioServiceAction;
+
 int radio_pandora_send_action(const char *control_path, RadioPandoraAction action);
 int radio_pandora_select_station(const char *control_path, int index, int station_count);
 int radio_pandora_clear_nowplaying(const char *nowplaying_path);
+int radio_pandora_stop(const char *control_path);
 
 RadioMpdService *radio_mpd_service_create(const char *hostname, int port, const char *password);
 void radio_mpd_service_free(RadioMpdService *service);
@@ -30,5 +43,6 @@ int radio_mpd_service_connect(RadioMpdService *service);
 int radio_mpd_service_stop(RadioMpdService *service);
 int radio_mpd_service_change_station(RadioMpdService *service, const char *station);
 int radio_mpd_service_current_song(RadioMpdService *service, RadioMpdSong *song);
+int radio_service_action(RadioManagedService service, RadioServiceAction action);
 
 #endif

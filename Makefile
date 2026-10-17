@@ -1,4 +1,6 @@
-prefix=/usr/local
+prefix ?= /usr/local
+SYSTEMD_UNIT_DIR ?= /etc/systemd/system
+DESTDIR ?=
 ODIR = .
 IDIR = .
 
@@ -24,8 +26,15 @@ PiRadio: $(OBJ)
 clean:
 		rm -f PiRadio $(ODIR)/*.o test_station_index test_radio_playlist test_song_metadata test_radio_services *~ core $(IDIR)/*~
 
-install: 
-	install -m 0755 PiRadio $(prefix)/bin
+install: PiRadio
+	install -d $(DESTDIR)$(prefix)/bin $(DESTDIR)$(SYSTEMD_UNIT_DIR)
+	install -m 0755 PiRadio $(DESTDIR)$(prefix)/bin/PiRadio
+	install -m 0644 PiRadio.service pianobar.service $(DESTDIR)$(SYSTEMD_UNIT_DIR)/
+	@if test -z "$(DESTDIR)"; then \
+		systemctl daemon-reload && \
+		systemctl enable PiRadio.service && \
+		systemctl start PiRadio.service; \
+	fi
 
 .PHONY: install
 

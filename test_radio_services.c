@@ -50,6 +50,8 @@ int main(void)
 	assert(radio_mpd_service_stop(NULL) != 0);
 	assert(radio_mpd_service_change_station(NULL, "station") != 0);
 	assert(radio_mpd_service_current_song(NULL, &song) < 0);
+	assert(radio_service_action((RadioManagedService)99, RADIO_SERVICE_START) != 0);
+	assert(radio_service_action(RADIO_MANAGED_MPD, (RadioServiceAction)99) != 0);
 	assert(unlink(path) == 0);
 	return 0;
 }

@@ -44,11 +44,7 @@ Ensure the `i2c-dev` kernel module is loaded at boot.
 
 ## Run as a systemd service
 
-Install and start the included unit:
-
-    sudo cp PiRadio.service /etc/systemd/system/
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now PiRadio.service
+`sudo make install` installs the executable and both systemd unit files, reloads systemd, and enables/starts PiRadio. Pianobar is started on demand when Pandora is selected; do not enable `pianobar.service` separately.
 
 Check status and logs with:
 
